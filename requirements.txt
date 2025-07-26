@@ -9,3 +9,10 @@ seaborn==0.13.2
 wordfreq[ja]==3.1.1
 fugashi[unidic-lite]==1.5.1
 ollama
+pydantic
+pyyaml
+torch
+transformers
+accelerate
+bitsandbytes
+sentence-transformers

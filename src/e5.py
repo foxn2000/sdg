@@ -5,6 +5,7 @@ from typing import List, Dict, Union, Optional, Any
 import ollama
 import sys
 from ollama import ResponseError
+import openai # openaiライブラリをインポート
 
 def reduce_data_by_diversity(
     data: Union[List[str], List[Dict]],
@@ -48,32 +49,44 @@ def reduce_data_by_diversity(
     # --- 4. バックエンドに応じてエンコード処理を分岐 ---
     backend = getattr(settings, 'inference_backend', 'vllm')
     embeddings = None
+    ollama_url = getattr(settings, "ollama_url", "http://localhost:11434")
 
     if backend == 'ollama':
         model_name = getattr(settings, 'E5_model_name', 'mxbai-embed-large')
-        print(f"Ollama埋め込みモデル '{model_name}' を使用してベクトルを生成します。")
+        print(f"埋め込みモデル '{model_name}' を使用してベクトルを生成します (URL: {ollama_url})。")
         try:
-            # Ollamaはリストで一括処理できる
-            response = ollama.embed(model=model_name, input=sentences)
-            
-            # responseオブジェクトからembeddings属性を取得しようと試みる
-            embedding_list = getattr(response, 'embeddings', None)
-
-            # 古いライブラリとの後方互換性のため、辞書形式もチェック
-            if embedding_list is None and isinstance(response, dict) and 'embeddings' in response:
-                embedding_list = response['embeddings']
-
-            if embedding_list:
+            if "/v1" in ollama_url: # LM StudioなどのOpenAI互換APIを検出
+                client = openai.OpenAI(base_url=ollama_url, api_key="lm-studio") # api_keyはダミーでOK
+                response = client.embeddings.create(
+                    model=model_name,
+                    input=sentences
+                )
+                embedding_list = [d.embedding for d in response.data]
                 embeddings = np.array(embedding_list)
-            else:
-                print(f"Ollamaからの予期せぬレスポンス形式です: {response}")
-                sys.exit(1)
+            else: # OllamaネイティブAPI
+                response = ollama.embed(model=model_name, input=sentences)
+                
+                # responseオブジェクトからembeddings属性を取得しようと試みる
+                embedding_list = getattr(response, 'embeddings', None)
+
+                # 古いライブラリとの後方互換性のため、辞書形式もチェック
+                if embedding_list is None and isinstance(response, dict) and 'embeddings' in response:
+                    embedding_list = response['embeddings']
+
+                if embedding_list:
+                    embeddings = np.array(embedding_list)
+                else:
+                    print(f"Ollamaからの予期せぬレスポンス形式です: {response}")
+                    sys.exit(1)
         except ResponseError as e:
             print(f"Ollamaでの埋め込み生成中にエラーが発生しました: {e.error}")
             if e.status_code == 404:
                 print(f"エラー: 埋め込みモデル '{model_name}' が見つかりません。")
                 print(f"解決策: 'ollama pull {model_name}' を実行してモデルをダウンロードしてください。")
                 sys.exit(1)
+            sys.exit(1)
+        except openai.APIStatusError as e:
+            print(f"OpenAI互換APIでの埋め込み生成中にエラーが発生しました: {e.status_code} - {e.response}")
             sys.exit(1)
         except Exception as e:
             print(f"予期せぬエラーが発生しました: {e}")
