@@ -70,6 +70,21 @@ def load_config(yaml_path: str | Path) -> SimpleNamespace:
     except yaml.YAMLError as e:
         raise ConfigLoadError(f"YAML パースに失敗しました: {e}") from e
 
+    # LM Studioの設定ファイルを条件付きでロード
+    if "inference_backend" in raw_conf and raw_conf["inference_backend"] == "lmstudio":
+        lmstudio_config_path = yaml_path.parent / "settings_lmstudio.yaml"
+        if lmstudio_config_path.exists():
+            try:
+                with lmstudio_config_path.open("r", encoding="utf-8") as f_lmstudio:
+                    lmstudio_conf: dict = yaml.safe_load(f_lmstudio)
+                # LM Studioの設定を既存の設定にマージ（LM Studioの設定が優先）
+                raw_conf.update(lmstudio_conf)
+                print(f"LM Studio設定ファイル '{lmstudio_config_path}' をロードしました。")
+            except yaml.YAMLError as e:
+                print(f"警告: LM Studio設定ファイル '{lmstudio_config_path}' のパースに失敗しました: {e}")
+            except Exception as e:
+                print(f"警告: LM Studio設定ファイル '{lmstudio_config_path}' のロード中に予期せぬエラーが発生しました: {e}")
+
     return _dict_to_namespace(raw_conf)
 
 def read_text_file(file_path: str):
