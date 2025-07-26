@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any, List, Dict, Optional, Union
+from src import util
 
 # --- 型定義（本来は types.py へ分離推奨） ---
 class Pipeline:
@@ -8,7 +9,7 @@ class Pipeline:
     各メソッドはパイプラインの主要フェーズを担当し、途中結果を返す。
     """
 
-    def __init__(self, config_path: Union[str, Path] = "config/config.yaml"):
+    def __init__(self, config_path: Union[str, Path] = "settings.yaml"):
         """
         設定ファイルの読み込み・作業ディレクトリの準備など初期化処理を行う。
         """
@@ -17,16 +18,30 @@ class Pipeline:
         self.data_dir = None  # 一時データ保存先
         self.output_dir = None  # 最終出力先
         self.prompts = None  # プロンプトテンプレート群
+        self.inf = None  # 推論バックエンドモジュール
         self._initialized = False
 
     def initialize(self):
         """
         設定・ディレクトリ・プロンプトの読み込みをまとめて実行。
         """
-        from src import util
         from test import setup_directories, load_prompts
 
         self.settings = util.load_config(str(self.config_path))
+        
+        # --- 推論バックエンドの動的インポート ---
+        backend_name = getattr(self.settings, 'inference_backend', 'vllm')
+        if backend_name == "ollama":
+            from src import ollama_inf as inf_module
+            print("推論バックエンドとして Ollama を使用します。")
+        elif backend_name == "vllm":
+            from src import vllm_inf as inf_module
+            print("推論バックエンドとして vLLM を使用します。")
+        else:
+            raise ImportError(f"無効な推論バックエンドが指定されました: {backend_name}")
+        self.inf = inf_module
+        # ---
+
         self.prompts = load_prompts()
         self.data_dir, self.output_dir = setup_directories(self.settings)
         self._initialized = True
@@ -37,7 +52,6 @@ class Pipeline:
         """
         self._require_init()
         from tqdm import tqdm
-        from src import util, vllm_inf
 
         settings = self.settings
         prompts = self.prompts
@@ -45,12 +59,12 @@ class Pipeline:
 
         # 生成方式に応じてモデルをロード
         if settings.Seed_generation_method == 'base':
-            model = vllm_inf.base_model_load(settings)
-            inference_func = vllm_inf.base_model_inference
+            model = self.inf.base_model_load(settings)
+            inference_func = self.inf.base_model_inference
             prompt_template = prompts["bare"]
         elif settings.Seed_generation_method == 'inst':
-            model = vllm_inf.inst_model_load(settings)
-            inference_func = vllm_inf.inst_model_inference
+            model = self.inf.inst_model_load(settings)
+            inference_func = self.inf.inst_model_inference
             prompt_template = prompts["inst_seed"]
         else:
             raise ValueError("settings.yaml の Seed_generation_method は 'base' または 'inst' である必要があります。")
@@ -115,7 +129,7 @@ class Pipeline:
 
         model_name_for_log = settings.base_model_name if settings.Seed_generation_method == 'base' else settings.Instruct_model_name
         del model
-        vllm_inf.unload_model(model_name_for_log)
+        self.inf.unload_model(model_name_for_log)
 
         all_questions = util.load_jsonl(str(questions_file))
         seen_questions = set()
@@ -137,7 +151,6 @@ class Pipeline:
         if not data:
             return []
         from tqdm import tqdm
-        from src import vllm_inf
         import math
 
         settings = self.settings
@@ -146,7 +159,7 @@ class Pipeline:
         if settings.Seed_generation_method != 'base':
             return data
 
-        model = vllm_inf.inst_model_load(settings)
+        model = self.inf.inst_model_load(settings)
         curation_prompt = prompts["curation_base"]
 
         def batched(iterable, n):
@@ -171,7 +184,7 @@ class Pipeline:
 
         for pair_batch in batched(chunk_prompt_pairs, settings.batch_size):
             batch_chunks, batch_prompts = zip(*pair_batch)
-            results = vllm_inf.inst_model_inference(model, list(batch_prompts), settings)
+            results = self.inf.inst_model_inference(model, list(batch_prompts), settings)
             for res, chunk in zip(results, batch_chunks):
                 if "yes" in res.lower():
                     curated_data.extend(chunk)
@@ -179,7 +192,7 @@ class Pipeline:
 
         pbar.close()
         del model
-        vllm_inf.unload_model(settings.Instruct_model_name)
+        self.inf.unload_model(settings.Instruct_model_name)
         return curated_data
 
     def diversity_filter(self, data: List[Dict]) -> List[Dict]:
@@ -199,8 +212,8 @@ class Pipeline:
             data=data,
             data_format='dict',
             cut_rate=cut_rate,
-            data_key='Question',
-            model_path=settings.E5_path
+            settings=settings,
+            data_key='Question'
         )
         return filtered_data
 
@@ -212,7 +225,6 @@ class Pipeline:
         if not data:
             return []
         from tqdm import tqdm
-        from src import vllm_inf
         import random
 
         settings = self.settings
@@ -227,7 +239,7 @@ class Pipeline:
         if not enable_flag or times == 0:
             return data
 
-        model = vllm_inf.inst_model_load(settings)
+        model = self.inf.inst_model_load(settings)
         evolved_data_stages = {0: data}
         data_to_evolve = [d.copy() for d in data]
 
@@ -242,7 +254,7 @@ class Pipeline:
             pbar = tqdm(total=len(data_to_evolve), desc=f"質問進化 {stage_idx}回目")
             for batch in batched(data_to_evolve, settings.batch_size):
                 batch_prompts = [f"{evo_prompt}\n\n{d[data_key]}" for d in batch]
-                evolved_texts = vllm_inf.inst_model_inference(model, batch_prompts, settings)
+                evolved_texts = self.inf.inst_model_inference(model, batch_prompts, settings)
                 for i, d in enumerate(batch):
                     new_d = d.copy()
                     new_d[data_key] = evolved_texts[i]
@@ -265,7 +277,7 @@ class Pipeline:
             result_data = evolved_data_stages[times]
 
         del model
-        vllm_inf.unload_model(settings.Instruct_model_name)
+        self.inf.unload_model(settings.Instruct_model_name)
         return result_data
 
     def generate_answers(self, data: List[Dict]) -> List[Dict]:
@@ -276,17 +288,16 @@ class Pipeline:
         if not data:
             return []
         from tqdm import tqdm
-        from src import util, vllm_inf
 
         settings = self.settings
 
         if settings.Using_think_models_for_answer:
-            model = vllm_inf.think_model_load(settings)
-            inference_func = vllm_inf.think_model_inference
+            model = self.inf.think_model_load(settings)
+            inference_func = self.inf.think_model_inference
             model_name_for_log = settings.think_model_name
         else:
-            model = vllm_inf.inst_model_load(settings)
-            inference_func = vllm_inf.inst_model_inference
+            model = self.inf.inst_model_load(settings)
+            inference_func = self.inf.inst_model_inference
             model_name_for_log = settings.Instruct_model_name
 
         instruction = "以下の質問に日本語で答えてください。"
@@ -314,7 +325,7 @@ class Pipeline:
         pbar.close()
 
         del model
-        vllm_inf.unload_model(model_name_for_log)
+        self.inf.unload_model(model_name_for_log)
         return answered_data
 
     def evolve_answers(self, data: List[Dict]) -> List[Dict]:
@@ -325,7 +336,6 @@ class Pipeline:
         if not data:
             return []
         from tqdm import tqdm
-        from src import vllm_inf
         import random
 
         settings = self.settings
@@ -340,7 +350,7 @@ class Pipeline:
         if not enable_flag or times == 0:
             return data
 
-        model = vllm_inf.inst_model_load(settings)
+        model = self.inf.inst_model_load(settings)
         evolved_data_stages = {0: data}
         data_to_evolve = [d.copy() for d in data]
 
@@ -355,7 +365,7 @@ class Pipeline:
             pbar = tqdm(total=len(data_to_evolve), desc=f"回答進化 {stage_idx}回目")
             for batch in batched(data_to_evolve, settings.batch_size):
                 batch_prompts = [f"{evo_prompt}\n\n{d[data_key]}" for d in batch]
-                evolved_texts = vllm_inf.inst_model_inference(model, batch_prompts, settings)
+                evolved_texts = self.inf.inst_model_inference(model, batch_prompts, settings)
                 for i, d in enumerate(batch):
                     new_d = d.copy()
                     new_d[data_key] = evolved_texts[i]
@@ -378,7 +388,7 @@ class Pipeline:
             result_data = evolved_data_stages[times]
 
         del model
-        vllm_inf.unload_model(settings.Instruct_model_name)
+        self.inf.unload_model(settings.Instruct_model_name)
         return result_data
 
     def curate_final(self, data: List[Dict]) -> List[Dict]:
@@ -394,9 +404,8 @@ class Pipeline:
             return data
 
         from tqdm import tqdm
-        from src import vllm_inf
 
-        model = vllm_inf.inst_model_load(settings)
+        model = self.inf.inst_model_load(settings)
         curation_prompt = prompts["curation"]
 
         def batched(iterable, n):
@@ -412,7 +421,7 @@ class Pipeline:
             for d in batch:
                 prompt = f'{curation_prompt}\n\n質問: {d["Question"]}\n回答: {d["Answer"]}'
                 batch_prompts.append(prompt)
-            results = vllm_inf.inst_model_inference(model, batch_prompts, settings)
+            results = self.inf.inst_model_inference(model, batch_prompts, settings)
             for i, res in enumerate(results):
                 if "yes" in res.lower():
                     curated_data.append(batch[i])
@@ -420,7 +429,7 @@ class Pipeline:
         pbar.close()
 
         del model
-        vllm_inf.unload_model(settings.Instruct_model_name)
+        self.inf.unload_model(settings.Instruct_model_name)
         return curated_data
 
     def save_dataset(self, data: List[Dict], path: Optional[Union[str, Path]] = None) -> Path:

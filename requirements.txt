@@ -9,3 +9,4 @@ seaborn==0.13.2
 wordfreq[ja]==3.1.1
 fugashi[unidic-lite]==1.5.1
 transformers==4.41.2
+ollama

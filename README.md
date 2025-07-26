@@ -1,4 +1,4 @@
-# sdg
+# sdg(Scalable Data Generator)
 
 ## 概要
 
@@ -39,7 +39,7 @@ pip install -r requirements.txt
 ```bash
 huggingface-cli download SakanaAI/TinySwallow-1.5B-Instruct --local-dir ./data/model/TinySwallow-1.5B-Instruct
 huggingface-cli download sbintuitions/sarashina2.2-3b --local-dir ./data/model/sarashina2.2-3b
-huggingface-cli download deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B ./data/model/DeepSeek-R1-Distill-Qwen-1.5B
+huggingface-cli download deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B --local-dir ./data/model/DeepSeek-R1-Distill-Qwen-1.5B
 ```
 
 各モデルの GPU メモリ要件は `*_gpu_memory_utilization` を参照してください。

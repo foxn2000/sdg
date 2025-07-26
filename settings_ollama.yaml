@@ -1,0 +1,67 @@
+# --- 全体の設定
+# 推論バックエンドを選択: "vllm" または "ollama"
+inference_backend: "ollama"
+
+# --- Ollamaの設定
+# Ollamaでpullしたモデル名（例: "gemma3:1b", "llama3"）を指定してください。
+Instruct_model_name: "gemma3:1b"
+Instruct_temperature: 0.7
+Instruct_top_p: 0.6
+
+base_model_name: "qwen3:1.7b"
+base_temperature: 0.65
+base_top_p: 0.6
+
+think_model_name: "deepseek-r1:1.5b"
+think_temperature: 0.65
+think_top_p: 0.6
+
+# --- vLLMと互換性のためのダミー設定 (Ollamaでは使用されません)
+Instruct_model_quantization: null
+Instruct_gpu_memory_utilization: 0.9
+Instruct_dtype: "auto"
+base_model_quantization: null
+base_gpu_memory_utilization: 0.7
+base_dtype: "auto"
+think_model_quantization: null
+think_gpu_memory_utilization: 0.9
+think_dtype: "auto"
+tensor_parallel_size: 1
+trust_remote_code: True
+
+# --- 共通設定
+batch_size: 8 # OllamaはvLLMより遅い場合が多いため、バッチサイズを小さめに設定することを推奨
+max_tokens: 4096
+seed: 42
+
+# --- データやモデルの配置設定
+# Ollamaで埋め込みに使用するモデル名
+E5_model_name: "mxbai-embed-large"
+# ローカルE5モデルのパス（vLLMモードとの互換性のためのダミー）
+E5_path: "./data/model/multilingual-e5-large"
+
+# --- 質問データ生成パイプラインの設定
+Seed_generation_method: "inst"
+Prompt_evolution: False
+Prompt_evolution_times: 0
+Number_of_stages_of_prompt_evolution: False
+Data_retention_rate_after_diversity_cut: 50
+
+# --- 回答データ生成パイプラインの設定
+Answer_evolution: False
+Answer_evolution_times: 0
+Number_of_stages_of_answer_evolution: False
+
+# --- 長考モデルの回答の設定
+Using_think_models_for_answer: False
+Thinking_separation_evolution: False
+Number_of_thought_evolutions: 1
+
+# --- 回答データキュレーションの設定
+Data_curation: False
+
+# --- 出力先などに関する設定
+data_folda_path: "./data"
+Save_temporary_data: True
+Number_of_questions_generated: 50
+output_path: "./data"

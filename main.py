@@ -1,11 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import argparse
 from src.funs import setup_pipeline
 
 def main():
+    parser = argparse.ArgumentParser(description="Synthetic Data Generation Pipeline")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="settings.yaml",
+        help="Path to the settings YAML file."
+    )
+    args = parser.parse_args()
+
     # パイプライン初期化
-    pipe = setup_pipeline("settings.yaml")
+    pipe = setup_pipeline(args.config)
 
     try:
         # 質問生成
