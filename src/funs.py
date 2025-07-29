@@ -34,6 +34,9 @@ class Pipeline:
         if backend_name == "ollama":
             from src import ollama_inf as inf_module
             print("推論バックエンドとして Ollama を使用します。")
+        elif backend_name == "lmstudio":
+            from src import ollama_inf as inf_module # LM Studioはollama_infで処理
+            print("推論バックエンドとして LM Studio (Ollama互換) を使用します。")
         elif backend_name == "vllm":
             from src import vllm_inf as inf_module
             print("推論バックエンドとして vLLM を使用します。")
@@ -129,7 +132,7 @@ class Pipeline:
 
         model_name_for_log = settings.base_model_name if settings.Seed_generation_method == 'base' else settings.Instruct_model_name
         del model
-        self.inf.unload_model(model_name_for_log)
+        self.inf.unload_model(model_name_for_log, settings)
 
         all_questions = util.load_jsonl(str(questions_file))
         seen_questions = set()
@@ -192,7 +195,7 @@ class Pipeline:
 
         pbar.close()
         del model
-        self.inf.unload_model(settings.Instruct_model_name)
+        self.inf.unload_model(settings.Instruct_model_name, settings)
         return curated_data
 
     def diversity_filter(self, data: List[Dict]) -> List[Dict]:
@@ -277,7 +280,7 @@ class Pipeline:
             result_data = evolved_data_stages[times]
 
         del model
-        self.inf.unload_model(settings.Instruct_model_name)
+        self.inf.unload_model(settings.Instruct_model_name, settings)
         return result_data
 
     def generate_answers(self, data: List[Dict]) -> List[Dict]:
@@ -325,7 +328,7 @@ class Pipeline:
         pbar.close()
 
         del model
-        self.inf.unload_model(model_name_for_log)
+        self.inf.unload_model(model_name_for_log, settings)
         return answered_data
 
     def evolve_answers(self, data: List[Dict]) -> List[Dict]:
@@ -388,7 +391,7 @@ class Pipeline:
             result_data = evolved_data_stages[times]
 
         del model
-        self.inf.unload_model(settings.Instruct_model_name)
+        self.inf.unload_model(settings.Instruct_model_name, settings)
         return result_data
 
     def curate_final(self, data: List[Dict]) -> List[Dict]:
@@ -429,7 +432,7 @@ class Pipeline:
         pbar.close()
 
         del model
-        self.inf.unload_model(settings.Instruct_model_name)
+        self.inf.unload_model(settings.Instruct_model_name, settings)
         return curated_data
 
     def save_dataset(self, data: List[Dict], path: Optional[Union[str, Path]] = None) -> Path:
