@@ -460,7 +460,7 @@ class Pipeline:
         final_dataset = []
         for item in data:
             formatted_item = {
-                "instruction": "以下の質問に日本語で答えてください。",
+                "instruction": "以下の質問に英語で答えてください。",
                 "input": item.get("Question", ""),
                 "output": item.get("Answer", "")
             }

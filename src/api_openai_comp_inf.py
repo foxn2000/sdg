@@ -29,7 +29,7 @@ def _get_sampling_params(settings: Any, prefix: str) -> dict:
         "max_tokens": max_tokens,
     }
 
-def _execute_inference(model_name: str, prompts: List[str], options: dict, is_chat: bool, settings: Any) -> List[str]:
+def _execute_inference(model_name: str, prompts: List[str], options: dict, is_chat: bool, settings: Any, endpoint: str | None = None, api_key: str | None = None) -> List[str]:
     """
     OpenAI互換APIを使用して推論を実行する内部関数。
     """
@@ -39,8 +39,8 @@ def _execute_inference(model_name: str, prompts: List[str], options: dict, is_ch
     base_delay = 1  # seconds
 
     client = OpenAI(
-        base_url=getattr(settings, "openai_comp_endpoint", "https://api.openai.com/v1"),
-        api_key=getattr(settings, "openai_comp_api_key"),
+        base_url=endpoint or getattr(settings, "openai_comp_endpoint", "https://api.openai.com/v1"),
+        api_key=api_key or getattr(settings, "openai_comp_api_key"),
     )
 
     for prompt in prompts:
@@ -126,9 +126,12 @@ def think_model_inference(llm: str, prompts: List[str], settings: Any) -> List[s
     """
     長考モデル（チャット形式）を用いてバッチ推論を行う。
     """
+    # settingsにthink_endpointがあるならそれを使用
+    endpoint = getattr(settings, "think_endpoint", None)
+    api_key = getattr(settings, "think_api_key", None)
     model_name = llm
     options = _get_sampling_params(settings, "think")
-    return _execute_inference(model_name, prompts, options, is_chat=True, settings=settings)
+    return _execute_inference(model_name, prompts, options, is_chat=True, settings=settings, endpoint=endpoint, api_key=api_key)
 
 def curation_model_inference(llm: str, prompts: List[str], settings: Any) -> List[str]:
     """
