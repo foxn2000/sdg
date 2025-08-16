@@ -51,7 +51,7 @@ E5_model_name: "text-embedding-3-small"
 #  ※FastAPI、OpenRouter、mlx_lm.server等
 # ----------------------------------------
 # inference_backend: "api_openai_comp"
-# # openai_comp_api_key: "YOUR_OPENAI_COMPLIANT_API_KEY"
+# openai_comp_api_key: "YOUR_OPENAI_COMPLIANT_API_KEY"
 # openai_comp_endpoint: "http://localhost:1234/v1"
 # Instruct_model_name: "google/gemma-3-1b"
 # Instruct_temperature: 0.7
@@ -59,6 +59,8 @@ E5_model_name: "text-embedding-3-small"
 # base_model_name: "google/gemma-3-1b"
 # base_temperature: 0.7
 # base_top_p: 1.0
+# think_endpoint: "http://localhost:1234/v1"
+# think_api_key: "YOUR_OPENAI_COMPLIANT_API_KEY"
 # think_model_name: "deepseek-r1-distill-qwen-1.5b"
 # think_temperature: 0.7
 # think_top_p: 1.0
